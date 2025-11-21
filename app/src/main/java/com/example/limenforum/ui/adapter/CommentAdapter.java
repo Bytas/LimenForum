@@ -7,6 +7,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import com.bumptech.glide.Glide;
 import com.example.limenforum.R;
 import com.example.limenforum.data.model.Comment;
 import java.util.ArrayList;
@@ -38,6 +39,17 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentV
         Comment comment = commentList.get(position);
         holder.username.setText(comment.getUsername());
         holder.content.setText(comment.getContent());
+        
+        if (comment.getAvatarUrl() != null && !comment.getAvatarUrl().isEmpty()) {
+             Glide.with(holder.itemView.getContext())
+                .load(comment.getAvatarUrl())
+                .placeholder(R.mipmap.ic_launcher_round)
+                .error(R.mipmap.ic_launcher_round)
+                .circleCrop()
+                .into(holder.avatar);
+        } else {
+            holder.avatar.setImageResource(R.mipmap.ic_launcher_round);
+        }
     }
 
     @Override

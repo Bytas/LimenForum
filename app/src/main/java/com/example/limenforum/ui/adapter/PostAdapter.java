@@ -42,7 +42,20 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
     public void onBindViewHolder(@NonNull PostViewHolder holder, int position) {
         Post post = postList.get(position);
 
-        holder.username.setText(post.getUsername());
+        // Set User info (which should already be resolved by Service)
+        holder.username.setText(post.getUsername()); // getUsername now returns display name
+        
+        if (post.getDisplayAvatarUrl() != null && !post.getDisplayAvatarUrl().isEmpty()) {
+            Glide.with(holder.itemView.getContext())
+                .load(post.getDisplayAvatarUrl())
+                .placeholder(R.mipmap.ic_launcher_round) // Placeholder while loading
+                .error(R.mipmap.ic_launcher_round) // Error fallback
+                .circleCrop()
+                .into(holder.userAvatar);
+        } else {
+            holder.userAvatar.setImageResource(R.mipmap.ic_launcher_round); // Fallback
+        }
+
         holder.title.setText(post.getTitle());
         holder.content.setText(post.getContent());
         holder.timeAgo.setText(post.getTimeAgo());

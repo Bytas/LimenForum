@@ -1,9 +1,11 @@
 package com.example.limenforum.data.service;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 import com.example.limenforum.data.model.Comment;
 import com.example.limenforum.data.model.Post;
+import com.example.limenforum.data.model.User;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -22,47 +24,130 @@ import android.os.Looper;
 
 public class LocalPostService implements PostService {
 
-    private static final String FILENAME = "posts_data.json";
+    private static final String POSTS_FILENAME = "posts_data.json";
+    private static final String USERS_FILENAME = "users_data.json";
+    private static final String PREF_NAME = "LimenDataPrefs";
+    private static final String KEY_DB_VERSION = "db_version";
+    private static final String CURRENT_DB_VERSION = "20251121-1830"; // Bumped version
+
     private final Context context;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // Simple cache to avoid reading disk every time
     private List<Post> cachedPosts = null;
+    private List<User> cachedUsers = null;
 
     public LocalPostService(Context context) {
         this.context = context.getApplicationContext();
+        checkDatabaseVersion();
+    }
+
+    private void checkDatabaseVersion() {
+        SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        String savedVersion = prefs.getString(KEY_DB_VERSION, "");
+
+        if (!CURRENT_DB_VERSION.equals(savedVersion)) {
+            Log.d("LocalPostService", "DB Version mismatch. Resetting data. Old: " + savedVersion + " New: " + CURRENT_DB_VERSION);
+            File postsFile = new File(context.getFilesDir(), POSTS_FILENAME);
+            if (postsFile.exists()) postsFile.delete();
+            File usersFile = new File(context.getFilesDir(), USERS_FILENAME);
+            if (usersFile.exists()) usersFile.delete();
+            
+            cachedPosts = null;
+            cachedUsers = null;
+            
+            prefs.edit().putString(KEY_DB_VERSION, CURRENT_DB_VERSION).apply();
+        }
     }
 
     @Override
     public void getPosts(PostCallback callback) {
         executor.execute(() -> {
             ensureDataLoaded();
-            mainHandler.post(() -> callback.onSuccess(new ArrayList<>(cachedPosts)));
+            // Resolve user data for each post before returning
+            List<Post> resolvedPosts = new ArrayList<>();
+            for (Post p : cachedPosts) {
+                resolvePostUser(p);
+                resolvedPosts.add(p);
+            }
+            mainHandler.post(() -> callback.onSuccess(new ArrayList<>(resolvedPosts)));
         });
     }
 
     @Override
-    public void getUserPosts(String username, PostCallback callback) {
+    public void getUserPosts(String userId, PostCallback callback) {
         executor.execute(() -> {
             ensureDataLoaded();
             List<Post> userPosts = new ArrayList<>();
             for (Post p : cachedPosts) {
-                if (p.getUsername().equals(username)) {
+                if (p.getUserId().equals(userId)) {
+                    resolvePostUser(p);
                     userPosts.add(p);
                 }
             }
-            mainHandler.post(() -> callback.onSuccess(userPosts));
+            // Recalculate and update stats if it's the current user
+            final int postCount = userPosts.size();
+            int totalLikes = 0;
+            for (Post p : userPosts) totalLikes += p.getLikeCount();
+            final int finalTotalLikes = totalLikes;
+
+            mainHandler.post(() -> {
+                User currentUser = User.getInstance();
+                if (currentUser.isLoggedIn() && currentUser.getUserId().equals(userId)) {
+                    currentUser.updateStats(postCount, finalTotalLikes);
+                    saveUserToInternalDb(currentUser); 
+                }
+                callback.onSuccess(userPosts);
+            });
         });
+    }
+    
+    @Override
+    public void getUser(String userId, UserCallback callback) {
+        executor.execute(() -> {
+            ensureDataLoaded();
+            User user = findUserById(userId);
+            mainHandler.post(() -> {
+                if (user != null) {
+                    callback.onSuccess(user);
+                } else {
+                    callback.onFailure("User not found");
+                }
+            });
+        });
+    }
+    
+    private void resolvePostUser(Post p) {
+        User u = findUserById(p.getUserId());
+        if (u != null) {
+            p.setDisplayUsername(u.getUsername());
+            p.setDisplayAvatarUrl(u.getAvatarUrl());
+        } else {
+            // Fallback
+            p.setDisplayUsername("User " + p.getUserId());
+            p.setDisplayAvatarUrl("https://testingbot.com/free-online-tools/random-avatar/200?u=" + p.getUserId());
+        }
+    }
+
+    private User findUserById(String userId) {
+        if (cachedUsers == null) return null;
+        for (User u : cachedUsers) {
+            if (u.getUserId().equals(userId)) return u;
+        }
+        return null;
     }
 
     @Override
     public void createPost(Post post, VoidCallback callback) {
         executor.execute(() -> {
             ensureDataLoaded();
-            // Add to top
             cachedPosts.add(0, post);
-            saveData();
+            savePostsData();
+            // Ensure current user is in the DB too
+            User currentUser = User.getInstance();
+            if (currentUser.getUserId().equals(post.getUserId())) {
+                saveUserToInternalDb(currentUser);
+            }
             mainHandler.post(callback::onSuccess);
         });
     }
@@ -78,7 +163,7 @@ public class LocalPostService implements PostService {
                     break;
                 }
             }
-            saveData();
+            savePostsData();
             mainHandler.post(callback::onSuccess);
         });
     }
@@ -94,37 +179,98 @@ public class LocalPostService implements PostService {
                     break;
                 }
             }
-            saveData();
+            savePostsData();
             mainHandler.post(callback::onSuccess);
         });
     }
 
+    // --- Data Management ---
+
     private synchronized void ensureDataLoaded() {
+        if (cachedUsers == null) {
+             File file = new File(context.getFilesDir(), USERS_FILENAME);
+             if (file.exists()) {
+                 cachedUsers = readUsersFromFile(file);
+             } else {
+                 cachedUsers = new ArrayList<>();
+                 // Generate initial mock users
+                 cachedUsers.addAll(new MockPostService().getInitialMockUsers());
+                 saveUsersData();
+             }
+        }
+        
         if (cachedPosts == null) {
-            File file = new File(context.getFilesDir(), FILENAME);
+            File file = new File(context.getFilesDir(), POSTS_FILENAME);
             if (!file.exists()) {
-                // Initialize with mock data if file doesn't exist
-                cachedPosts = new MockPostService().getInitialMockData();
-                saveData(); // Save initial data to file
+                cachedPosts = new MockPostService().getInitialMockData(); // Now returns posts with UIDs
+                savePostsData();
             } else {
-                // Read from file
-                cachedPosts = readFromFile(file);
+                cachedPosts = readPostsFromFile(file);
             }
         }
     }
 
-    private void saveData() {
+    private void savePostsData() {
         if (cachedPosts == null) return;
-        File file = new File(context.getFilesDir(), FILENAME);
+        File file = new File(context.getFilesDir(), POSTS_FILENAME);
         try (FileOutputStream fos = new FileOutputStream(file)) {
             String jsonString = serializePosts(cachedPosts);
             fos.write(jsonString.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
-            Log.e("LocalPostService", "Error saving data", e);
+            Log.e("LocalPostService", "Error saving post data", e);
         }
     }
+    
+    private void saveUsersData() {
+        if (cachedUsers == null) return;
+        File file = new File(context.getFilesDir(), USERS_FILENAME);
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            String jsonString = serializeUsers(cachedUsers);
+            fos.write(jsonString.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            Log.e("LocalPostService", "Error saving user data", e);
+        }
+    }
+    
+    private void saveUserToInternalDb(User currentUser) {
+        // This method is called within executor threads usually
+        boolean found = false;
+        for (int i = 0; i < cachedUsers.size(); i++) {
+            if (cachedUsers.get(i).getUserId().equals(currentUser.getUserId())) {
+                cachedUsers.set(i, currentUser); // Update existing
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            cachedUsers.add(currentUser);
+        }
+        saveUsersData();
+    }
 
-    private List<Post> readFromFile(File file) {
+    // --- Serialization Helpers ---
+
+    private List<Post> readPostsFromFile(File file) {
+        String json = readFileContent(file);
+        try {
+            return deserializePosts(json);
+        } catch (JSONException e) {
+            Log.e("LocalPostService", "Error parsing posts", e);
+            return new ArrayList<>();
+        }
+    }
+    
+    private List<User> readUsersFromFile(File file) {
+        String json = readFileContent(file);
+        try {
+            return deserializeUsers(json);
+        } catch (JSONException e) {
+            Log.e("LocalPostService", "Error parsing users", e);
+            return new ArrayList<>();
+        }
+    }
+    
+    private String readFileContent(File file) {
         try (FileInputStream fis = new FileInputStream(file);
              InputStreamReader isr = new InputStreamReader(fis, StandardCharsets.UTF_8);
              BufferedReader br = new BufferedReader(isr)) {
@@ -134,20 +280,19 @@ public class LocalPostService implements PostService {
             while ((line = br.readLine()) != null) {
                 sb.append(line);
             }
-            return deserializePosts(sb.toString());
+            return sb.toString();
         } catch (Exception e) {
-            Log.e("LocalPostService", "Error reading data", e);
-            return new ArrayList<>();
+            return "[]";
         }
     }
 
-    // Helper: Serialize List<Post> to JSON String
+    // Serialize List<Post> to JSON String
     private String serializePosts(List<Post> posts) throws JSONException {
         JSONArray jsonArray = new JSONArray();
         for (Post p : posts) {
             JSONObject obj = new JSONObject();
             obj.put("id", p.getId());
-            obj.put("username", p.getUsername());
+            obj.put("userId", p.getUserId()); // Changed
             obj.put("title", p.getTitle());
             obj.put("content", p.getContent());
             obj.put("tagName", p.getTagName());
@@ -161,24 +306,44 @@ public class LocalPostService implements PostService {
             JSONArray commentsArray = new JSONArray();
             for (Comment c : p.getComments()) {
                 JSONObject cObj = new JSONObject();
+                cObj.put("userId", c.getUserId()); // ADDED
                 cObj.put("username", c.getUsername());
                 cObj.put("content", c.getContent());
+                cObj.put("avatarUrl", c.getAvatarUrl()); // ADDED
                 commentsArray.put(cObj);
             }
             obj.put("comments", commentsArray);
-
+            jsonArray.put(obj);
+        }
+        return jsonArray.toString();
+    }
+    
+    // Serialize List<User> to JSON String
+    private String serializeUsers(List<User> users) throws JSONException {
+        JSONArray jsonArray = new JSONArray();
+        for (User u : users) {
+            JSONObject obj = new JSONObject();
+            obj.put("userId", u.getUserId());
+            obj.put("username", u.getUsername());
+            if (u.getAvatarUrl() != null) obj.put("avatarUrl", u.getAvatarUrl());
+            obj.put("postCount", u.getPostCount());
+            obj.put("likeCount", u.getLikeCount());
             jsonArray.put(obj);
         }
         return jsonArray.toString();
     }
 
-    // Helper: Deserialize JSON String to List<Post>
+    // Deserialize JSON String to List<Post>
     private List<Post> deserializePosts(String jsonString) throws JSONException {
         List<Post> list = new ArrayList<>();
+        if (jsonString == null || jsonString.isEmpty()) return list;
+        
         JSONArray jsonArray = new JSONArray(jsonString);
         for (int i = 0; i < jsonArray.length(); i++) {
             JSONObject obj = jsonArray.getJSONObject(i);
-            String username = obj.getString("username");
+            // Use userId for reconstruction
+            String userId = obj.has("userId") ? obj.getString("userId") : (obj.has("username") ? String.valueOf(Math.abs(obj.getString("username").hashCode())) : "0");
+            
             String title = obj.has("title") ? obj.getString("title") : "";
             String content = obj.getString("content");
             String tagName = obj.getString("tagName");
@@ -186,7 +351,7 @@ public class LocalPostService implements PostService {
             int likeCount = obj.getInt("likeCount");
             int commentCount = obj.getInt("commentCount");
 
-            Post post = new Post(username, title, content, tagName, timeAgo, likeCount, commentCount);
+            Post post = new Post(userId, title, content, tagName, timeAgo, likeCount, commentCount);
             if (obj.has("id")) post.setId(obj.getString("id"));
             if (obj.has("imageUri")) post.setImageUri(obj.getString("imageUri"));
             if (obj.has("isLiked")) post.setLiked(obj.getBoolean("isLiked"));
@@ -195,10 +360,37 @@ public class LocalPostService implements PostService {
                 JSONArray commentsArray = obj.getJSONArray("comments");
                 for (int j = 0; j < commentsArray.length(); j++) {
                     JSONObject cObj = commentsArray.getJSONObject(j);
-                    post.addComment(new Comment(cObj.getString("username"), cObj.getString("content")));
+                    // Robust fallback for comments
+                    String cUser = cObj.getString("username");
+                    String cContent = cObj.getString("content");
+                    
+                    if (cObj.has("userId")) {
+                        Comment newComment = new Comment(cObj.getString("userId"), cUser, cContent);
+                        if (cObj.has("avatarUrl")) newComment.setAvatarUrl(cObj.getString("avatarUrl"));
+                        post.addComment(newComment);
+                    } else {
+                        post.addComment(new Comment(cUser, cContent)); // Legacy
+                    }
                 }
             }
             list.add(post);
+        }
+        return list;
+    }
+    
+    // Deserialize JSON String to List<User>
+    private List<User> deserializeUsers(String jsonString) throws JSONException {
+        List<User> list = new ArrayList<>();
+        if (jsonString == null || jsonString.isEmpty()) return list;
+
+        JSONArray jsonArray = new JSONArray(jsonString);
+        for (int i = 0; i < jsonArray.length(); i++) {
+            JSONObject obj = jsonArray.getJSONObject(i);
+            String uid = obj.getString("userId");
+            String uname = obj.getString("username");
+            String avatar = obj.has("avatarUrl") ? obj.getString("avatarUrl") : null;
+            User user = new User(uid, uname, avatar);
+            list.add(user);
         }
         return list;
     }

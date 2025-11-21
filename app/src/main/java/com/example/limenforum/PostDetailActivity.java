@@ -19,6 +19,7 @@ import com.example.limenforum.LimenApplication;
 import com.example.limenforum.data.model.Comment;
 import com.example.limenforum.data.model.Post;
 import com.example.limenforum.data.model.User;
+import com.example.limenforum.data.service.LocalPostService;
 import com.example.limenforum.data.service.PostService;
 import com.example.limenforum.ui.adapter.CommentAdapter;
 
@@ -95,8 +96,18 @@ public class PostDetailActivity extends AppCompatActivity {
 
     private void bindData() {
         // Toolbar User Info
-        toolbarUserName.setText(post.getUsername());
-        // In a real app, load user avatar URL here
+        toolbarUserName.setText(post.getUsername()); // Uses resolved username
+        
+        if (post.getDisplayAvatarUrl() != null && !post.getDisplayAvatarUrl().isEmpty()) {
+             Glide.with(this)
+                .load(post.getDisplayAvatarUrl())
+                .placeholder(R.mipmap.ic_launcher_round)
+                .error(R.mipmap.ic_launcher_round)
+                .circleCrop()
+                .into(toolbarUserAvatar);
+        } else {
+            toolbarUserAvatar.setImageResource(R.mipmap.ic_launcher_round);
+        }
 
         // Post Content
         detailTitle.setText(post.getTitle());

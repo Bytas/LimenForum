@@ -39,6 +39,13 @@
             android:exported="false"
             android:parentActivityName=".MainActivity" />
 
+        <!-- 5. Create Post Activity -->
+        <activity
+            android:name=".CreatePostActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.LimenForum"/>
+
     </application>
 
 </manifest>

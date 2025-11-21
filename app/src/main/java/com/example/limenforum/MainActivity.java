@@ -14,6 +14,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
@@ -47,6 +48,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Ensure system bars are handled correctly, not overlapping content blindly
+        // If we want standard behavior (status bar visible, not under content):
+        // We can simply NOT call setDecorFitsSystemWindows(false) or handle insets.
+        // But to be safe and explicit for "normal" app behavior:
+        // WindowCompat.setDecorFitsSystemWindows(getWindow(), true); // Default is usually true for AppCompatActivity but good to ensure if issues arise.
+        
         User.init(this);
         // Get Service from Application
         postService = LimenApplication.getInstance().getPostService();
@@ -122,83 +130,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showCreatePostDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("快速发帖");
-
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 30, 50, 30);
-
-        final EditText inputTitle = new EditText(this);
-        inputTitle.setHint("加个标题...");
-        inputTitle.setMaxLines(1);
-        layout.addView(inputTitle);
-
-        final EditText inputContent = new EditText(this);
-        inputContent.setHint("分享你的想法...");
-        inputContent.setMinLines(3);
-        inputContent.setGravity(Gravity.TOP);
-        layout.addView(inputContent);
-
-        final TextView tagLabel = new TextView(this);
-        tagLabel.setText("选择分区:");
-        tagLabel.setPadding(0, 30, 0, 10);
-        layout.addView(tagLabel);
-
-        final Spinner tagSpinner = new Spinner(this);
-        String[] tags = {"编程", "游戏", "校园", "科技"};
-        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, tags);
-        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        tagSpinner.setAdapter(spinnerAdapter);
-        layout.addView(tagSpinner);
-
-        tempPreviewImage = new ImageView(this);
-        tempPreviewImage.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 400)); 
-        tempPreviewImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        tempPreviewImage.setVisibility(android.view.View.GONE);
-        layout.addView(tempPreviewImage);
-
-        Button btnAddImage = new Button(this);
-        btnAddImage.setText("添加图片 📷");
-        btnAddImage.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
-        layout.addView(btnAddImage);
-
-        selectedImageUri = null;
-
-        builder.setView(layout);
-
-        builder.setPositiveButton("发布", (dialog, which) -> {
-            String title = inputTitle.getText().toString();
-            String content = inputContent.getText().toString();
-            String selectedTag = tagSpinner.getSelectedItem().toString();
-
-            if (title.isEmpty()) title = "无标题";
-
-            if (!content.isEmpty()) {
-                Post newPost = new Post(User.getInstance().getUsername(), title, content, selectedTag, "刚刚", 0, 0);
-                
-                if (selectedImageUri != null) {
-                    newPost.setImageUri(selectedImageUri.toString());
-                }
-
-                postService.createPost(newPost, new PostService.VoidCallback() {
-                    @Override
-                    public void onSuccess() {
-                        Toast.makeText(MainActivity.this, "发布成功 (需刷新列表查看)", Toast.LENGTH_SHORT).show();
-                        User.getInstance().incrementPostCount();
-                        // Ideally, refresh current fragment if it's home
-                    }
-
-                    @Override
-                    public void onFailure(String errorMessage) {
-                        Toast.makeText(MainActivity.this, "发布失败: " + errorMessage, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-        });
-
-        builder.setNegativeButton("取消", null);
-        builder.show();
+        Intent intent = new Intent(this, CreatePostActivity.class);
+        startActivity(intent);
     }
 }

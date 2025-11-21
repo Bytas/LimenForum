@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public class Post implements Serializable {
     private String id;
-    private String username;
+    private String userId; // Changed from username to userId
     private String title;
     private String content;
     private String tagName;
@@ -17,14 +17,18 @@ public class Post implements Serializable {
     private String imageUri;
     private List<Comment> comments;
 
+    // Transient fields for UI display (populated after fetching)
+    private String displayUsername;
+    private String displayAvatarUrl;
+
     private boolean isLiked = false;
 
     public boolean isLiked() { return isLiked; }
     public void setLiked(boolean liked) { isLiked = liked; }
 
-    public Post(String username, String title, String content, String tagName, String timeAgo, int likeCount, int commentCount) {
+    public Post(String userId, String title, String content, String tagName, String timeAgo, int likeCount, int commentCount) {
         this.id = UUID.randomUUID().toString();
-        this.username = username;
+        this.userId = userId;
         this.title = title;
         this.content = content;
         this.tagName = tagName;
@@ -37,9 +41,19 @@ public class Post implements Serializable {
 
     // Getters and Setters
     public String getId() { return id; }
-    public void setId(String id) { this.id = id; } // For deserialization if needed
+    public void setId(String id) { this.id = id; }
 
-    public String getUsername() { return username; }
+    public String getUserId() { return userId; } // Renamed getter
+    
+    // Legacy getter for compatibility until full refactor, returns userId or resolved name
+    public String getUsername() { 
+        return displayUsername != null ? displayUsername : "User " + userId; 
+    } 
+    
+    public void setDisplayUsername(String name) { this.displayUsername = name; }
+    public String getDisplayAvatarUrl() { return displayAvatarUrl; }
+    public void setDisplayAvatarUrl(String url) { this.displayAvatarUrl = url; }
+
     public String getTitle() { return title; }
     public String getContent() { return content; }
     public String getTagName() { return tagName; }

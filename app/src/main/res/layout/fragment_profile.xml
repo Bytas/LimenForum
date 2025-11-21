@@ -35,7 +35,6 @@
                         android:layout_width="80dp"
                         android:layout_height="80dp"
                         android:src="@android:drawable/sym_def_app_icon"
-                        app:tint="#9CA3AF"
                         android:background="@android:color/transparent" />
 
                     <LinearLayout

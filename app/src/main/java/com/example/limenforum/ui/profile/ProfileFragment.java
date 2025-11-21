@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.bumptech.glide.Glide;
 import com.example.limenforum.LimenApplication;
 import com.example.limenforum.LoginActivity;
 import com.example.limenforum.R;
@@ -83,14 +84,24 @@ public class ProfileFragment extends Fragment {
         tvId.setText("ID: " + Math.abs(user.getUsername().hashCode())); // Mock ID
         tvPostCount.setText(String.valueOf(user.getPostCount()));
         tvLikeCount.setText(String.valueOf(user.getLikeCount()));
+        
+        if (user.getAvatarUrl() != null) {
+            Glide.with(this)
+                .load(user.getAvatarUrl())
+                .circleCrop()
+                .into(avatar);
+        }
     }
 
     private void fetchUserPosts() {
         swipeRefreshLayout.setRefreshing(true);
-        postService.getUserPosts(User.getInstance().getUsername(), new PostService.PostCallback() {
+        // Use getUserId() instead of getUsername() for consistent ID-based lookup
+        postService.getUserPosts(User.getInstance().getUserId(), new PostService.PostCallback() {
             @Override
             public void onSuccess(List<Post> posts) {
                 adapter.setPosts(posts);
+                // Also refresh stats display after fetching (as service updates user singleton)
+                updateUserInfo(); 
                 swipeRefreshLayout.setRefreshing(false);
             }
 

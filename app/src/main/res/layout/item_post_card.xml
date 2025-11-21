@@ -70,8 +70,7 @@
                     android:id="@+id/userAvatar"
                     android:layout_width="32dp"
                     android:layout_height="32dp"
-                    android:src="@android:drawable/sym_def_app_icon"
-                    app:tint="@color/text_secondary" />
+                    android:src="@android:drawable/sym_def_app_icon" />
 
                 <!-- Username and Time -->
                 <LinearLayout
@@ -114,8 +113,7 @@
                         android:id="@+id/imgLikeIcon"
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@android:drawable/btn_star_big_off"
-                        app:tint="@color/text_secondary" />
+                        android:src="@android:drawable/btn_star_big_off" />
 
                     <TextView
                         android:id="@+id/tvLikeCount"
