@@ -16,6 +16,7 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,7 +29,7 @@ public class LocalPostService implements PostService {
     private static final String USERS_FILENAME = "users_data.json";
     private static final String PREF_NAME = "LimenDataPrefs";
     private static final String KEY_DB_VERSION = "db_version";
-    private static final String CURRENT_DB_VERSION = "20251121-2000"; // Bumped version for timestamp migration
+    private static final String CURRENT_DB_VERSION = "20251121-2036"; // Bumped version for timestamp migration
 
     private final Context context;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -70,6 +71,8 @@ public class LocalPostService implements PostService {
                 resolvePostUser(p);
                 resolvedPosts.add(p);
             }
+            // Shuffle posts for random order on each refresh
+            Collections.shuffle(resolvedPosts);
             mainHandler.post(() -> callback.onSuccess(new ArrayList<>(resolvedPosts)));
         });
     }
