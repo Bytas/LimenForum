@@ -15,11 +15,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.example.limenforum.LimenApplication;
 import com.example.limenforum.LoginActivity;
 import com.example.limenforum.R;
 import com.example.limenforum.data.model.Post;
 import com.example.limenforum.data.model.User;
-import com.example.limenforum.data.service.MockPostService;
 import com.example.limenforum.data.service.PostService;
 import com.example.limenforum.ui.adapter.PostAdapter;
 
@@ -44,7 +44,7 @@ public class ProfileFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         
-        postService = new MockPostService();
+        postService = LimenApplication.getInstance().getPostService();
 
         // Bind Views
         recyclerView = view.findViewById(R.id.recyclerViewProfile);

@@ -3,8 +3,10 @@ package com.example.limenforum.data.model;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class Post implements Serializable {
+    private String id;
     private String username;
     private String title;
     private String content;
@@ -21,6 +23,7 @@ public class Post implements Serializable {
     public void setLiked(boolean liked) { isLiked = liked; }
 
     public Post(String username, String title, String content, String tagName, String timeAgo, int likeCount, int commentCount) {
+        this.id = UUID.randomUUID().toString();
         this.username = username;
         this.title = title;
         this.content = content;
@@ -31,6 +34,10 @@ public class Post implements Serializable {
         this.imageUri = null;
         this.comments = new ArrayList<>();
     }
+
+    // Getters and Setters
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; } // For deserialization if needed
 
     public String getUsername() { return username; }
     public String getTitle() { return title; }

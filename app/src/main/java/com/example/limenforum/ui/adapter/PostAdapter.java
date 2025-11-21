@@ -8,15 +8,23 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
+import com.example.limenforum.LimenApplication;
+import com.example.limenforum.PostDetailActivity;
 import com.example.limenforum.R;
 import com.example.limenforum.data.model.Post;
-import com.example.limenforum.PostDetailActivity;
+import com.example.limenforum.data.service.PostService;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder> {
 
     private List<Post> postList = new ArrayList<>();
+    private PostService postService;
+
+    public PostAdapter() {
+        this.postService = LimenApplication.getInstance().getPostService();
+    }
 
     public void setPosts(List<Post> newPosts) {
         this.postList = newPosts;
@@ -56,14 +64,34 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
 
         holder.likeButton.setOnClickListener(v -> {
             boolean newState = !post.isLiked();
+            // Optimistic update
             post.setLiked(newState);
-
             if (newState) {
                 post.setLikeCount(post.getLikeCount() + 1);
             } else {
                 post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
             }
             notifyItemChanged(position);
+
+            // Call Service
+            postService.toggleLike(post.getId(), newState, new PostService.VoidCallback() {
+                @Override
+                public void onSuccess() {
+                    // Success, nothing more to do
+                }
+
+                @Override
+                public void onFailure(String errorMessage) {
+                    // Revert on failure
+                    post.setLiked(!newState);
+                    if (!newState) {
+                        post.setLikeCount(post.getLikeCount() + 1);
+                    } else {
+                        post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
+                    }
+                    notifyItemChanged(position);
+                }
+            });
         });
 
         // --- 点击卡片查看详情/评论 ---

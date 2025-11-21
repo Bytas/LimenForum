@@ -18,15 +18,19 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.example.limenforum.data.model.Post;
 import com.example.limenforum.data.model.User;
 import com.example.limenforum.ui.home.HomeFragment;
 import com.example.limenforum.ui.profile.ProfileFragment;
+
+import com.example.limenforum.data.service.PostService;
 
 public class MainActivity extends AppCompatActivity {
 
     private LinearLayout navHome, navPublish, navMine;
     private android.net.Uri selectedImageUri = null;
     private ImageView tempPreviewImage;
+    private PostService postService;
 
     // 图片选择器 (ActivityResultLauncher)
     private final androidx.activity.result.ActivityResultLauncher<String> pickImageLauncher =
@@ -44,6 +48,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         User.init(this);
+        // Get Service from Application
+        postService = LimenApplication.getInstance().getPostService();
+        
         setContentView(R.layout.activity_main);
 
         // Check login
@@ -169,17 +176,25 @@ public class MainActivity extends AppCompatActivity {
             if (title.isEmpty()) title = "无标题";
 
             if (!content.isEmpty()) {
-                // NOTE: In a real app with separate fragments, 
-                // posting should likely go through a Service/ViewModel shared by MainActivity
-                // and then notify the HomeFragment to refresh.
-                // For this refactor step, we will just show a Toast since we don't have a full event bus.
-                // Ideally, we would add to the MockService's internal list.
+                Post newPost = new Post(User.getInstance().getUsername(), title, content, selectedTag, "刚刚", 0, 0);
                 
-                Toast.makeText(this, "发布成功 (需刷新列表查看)", Toast.LENGTH_SHORT).show();
-                User.getInstance().incrementPostCount();
-                
-                // If on HomeFragment, we might want to trigger a refresh manually if we had access.
-                // For now, switching tabs will refresh.
+                if (selectedImageUri != null) {
+                    newPost.setImageUri(selectedImageUri.toString());
+                }
+
+                postService.createPost(newPost, new PostService.VoidCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(MainActivity.this, "发布成功 (需刷新列表查看)", Toast.LENGTH_SHORT).show();
+                        User.getInstance().incrementPostCount();
+                        // Ideally, refresh current fragment if it's home
+                    }
+
+                    @Override
+                    public void onFailure(String errorMessage) {
+                        Toast.makeText(MainActivity.this, "发布失败: " + errorMessage, Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         });
 

@@ -15,9 +15,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.example.limenforum.LimenApplication;
 import com.example.limenforum.data.model.Comment;
 import com.example.limenforum.data.model.Post;
 import com.example.limenforum.data.model.User;
+import com.example.limenforum.data.service.PostService;
 import com.example.limenforum.ui.adapter.CommentAdapter;
 
 import java.util.List;
@@ -28,6 +30,7 @@ public class PostDetailActivity extends AppCompatActivity {
 
     private Post post;
     private CommentAdapter commentAdapter;
+    private PostService postService;
 
     private ImageView detailImage, toolbarUserAvatar;
     private TextView detailTitle, detailContent, detailTags, detailDate, detailCommentCount, toolbarUserName;
@@ -39,6 +42,8 @@ public class PostDetailActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_post_detail);
+        
+        postService = LimenApplication.getInstance().getPostService();
 
         // 1. 获取传递的数据
         post = (Post) getIntent().getSerializableExtra(EXTRA_POST);
@@ -127,23 +132,25 @@ public class PostDetailActivity extends AppCompatActivity {
                 // Create Comment
                 Comment newComment = new Comment(User.getInstance().getUsername(), text);
                 
-                // Add to Post Object (Note: This only modifies the local copy passed via Intent. 
-                // In a real app with a DB/API, this would be handled centrally. 
-                // For this mock app, changes here won't reflect back in MainActivity list unless we pass data back 
-                // or use a Singleton data source. Given the scope, we'll just update this view.)
-                
-                // REMOVED post.addComment(newComment); to avoid double adding since adapter shares the list reference
-                
-                // Update Adapter (which updates the list)
-                commentAdapter.addComment(newComment);
-                post.setCommentCount(post.getCommentCount() + 1); // Manually update count
+                postService.addComment(post.getId(), newComment, new PostService.VoidCallback() {
+                    @Override
+                    public void onSuccess() {
+                        // Update Adapter (which updates the list)
+                        commentAdapter.addComment(newComment);
+                        post.setCommentCount(post.getCommentCount() + 1); // Manually update count
+                        
+                        // Clear Input
+                        inputComment.setText("");
+                        
+                        updateCommentCount();
+                        Toast.makeText(PostDetailActivity.this, "评论发送成功", Toast.LENGTH_SHORT).show();
+                    }
 
-                
-                // Clear Input
-                inputComment.setText("");
-                
-                updateCommentCount();
-                Toast.makeText(this, "评论发送成功", Toast.LENGTH_SHORT).show();
+                    @Override
+                    public void onFailure(String errorMessage) {
+                        Toast.makeText(PostDetailActivity.this, "评论失败: " + errorMessage, Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         });
     }
