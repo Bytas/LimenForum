@@ -1,6 +1,7 @@
 package com.example.limenforum.ui.profile;
 
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -34,6 +35,12 @@ public class ProfileFragment extends Fragment {
     private PostService postService;
     private TextView tvName, tvId, tvPostCount, tvLikeCount;
     private ImageView avatar;
+    
+    private View tabMyPosts, tabLikedPosts;
+    private TextView tvTabMyPosts, tvTabLikedPosts;
+    private View indicatorMyPosts, indicatorLikedPosts;
+    
+    private int currentTab = 0; // 0: My Posts, 1: Liked Posts
 
     @Nullable
     @Override
@@ -56,6 +63,14 @@ public class ProfileFragment extends Fragment {
         tvLikeCount = view.findViewById(R.id.profileLikeCount);
         avatar = view.findViewById(R.id.profileAvatar);
         
+        // Tabs
+        tabMyPosts = view.findViewById(R.id.tabMyPosts);
+        tabLikedPosts = view.findViewById(R.id.tabLikedPosts);
+        tvTabMyPosts = view.findViewById(R.id.tvTabMyPosts);
+        tvTabLikedPosts = view.findViewById(R.id.tvTabLikedPosts);
+        indicatorMyPosts = view.findViewById(R.id.indicatorMyPosts);
+        indicatorLikedPosts = view.findViewById(R.id.indicatorLikedPosts);
+        
         // Logout Button
         view.findViewById(R.id.btnLogout).setOnClickListener(v -> {
             User.getInstance().logout();
@@ -65,9 +80,38 @@ public class ProfileFragment extends Fragment {
 
         setupRecyclerView();
         updateUserInfo();
+        setupTabs();
 
-        swipeRefreshLayout.setOnRefreshListener(this::fetchUserPosts);
-        fetchUserPosts();
+        swipeRefreshLayout.setOnRefreshListener(this::fetchData);
+        fetchData();
+    }
+    
+    private void setupTabs() {
+        tabMyPosts.setOnClickListener(v -> switchTab(0));
+        tabLikedPosts.setOnClickListener(v -> switchTab(1));
+        switchTab(0); // Default
+    }
+    
+    private void switchTab(int tabIndex) {
+        currentTab = tabIndex;
+        if (tabIndex == 0) {
+            tvTabMyPosts.setTextColor(Color.parseColor("#111827"));
+            tvTabMyPosts.setTypeface(null, android.graphics.Typeface.BOLD);
+            indicatorMyPosts.setVisibility(View.VISIBLE);
+            
+            tvTabLikedPosts.setTextColor(Color.parseColor("#6B7280"));
+            tvTabLikedPosts.setTypeface(null, android.graphics.Typeface.NORMAL);
+            indicatorLikedPosts.setVisibility(View.INVISIBLE);
+        } else {
+            tvTabMyPosts.setTextColor(Color.parseColor("#6B7280"));
+            tvTabMyPosts.setTypeface(null, android.graphics.Typeface.NORMAL);
+            indicatorMyPosts.setVisibility(View.INVISIBLE);
+            
+            tvTabLikedPosts.setTextColor(Color.parseColor("#111827"));
+            tvTabLikedPosts.setTypeface(null, android.graphics.Typeface.BOLD);
+            indicatorLikedPosts.setVisibility(View.VISIBLE);
+        }
+        fetchData();
     }
 
     private void setupRecyclerView() {
@@ -93,14 +137,20 @@ public class ProfileFragment extends Fragment {
         }
     }
 
+    private void fetchData() {
+        if (currentTab == 0) {
+            fetchUserPosts();
+        } else {
+            fetchLikedPosts();
+        }
+    }
+
     private void fetchUserPosts() {
         swipeRefreshLayout.setRefreshing(true);
-        // Use getUserId() instead of getUsername() for consistent ID-based lookup
         postService.getUserPosts(User.getInstance().getUserId(), new PostService.PostCallback() {
             @Override
             public void onSuccess(List<Post> posts) {
                 adapter.setPosts(posts);
-                // Also refresh stats display after fetching (as service updates user singleton)
                 updateUserInfo(); 
                 swipeRefreshLayout.setRefreshing(false);
             }
@@ -108,10 +158,32 @@ public class ProfileFragment extends Fragment {
             @Override
             public void onFailure(String errorMessage) {
                 swipeRefreshLayout.setRefreshing(false);
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "加载失败: " + errorMessage, Toast.LENGTH_SHORT).show();
-                }
+                showToast("加载失败: " + errorMessage);
             }
         });
+    }
+    
+    private void fetchLikedPosts() {
+        swipeRefreshLayout.setRefreshing(true);
+        postService.getLikedPosts(User.getInstance().getUserId(), new PostService.PostCallback() {
+            @Override
+            public void onSuccess(List<Post> posts) {
+                adapter.setPosts(posts);
+                updateUserInfo();
+                swipeRefreshLayout.setRefreshing(false);
+            }
+
+            @Override
+            public void onFailure(String errorMessage) {
+                swipeRefreshLayout.setRefreshing(false);
+                showToast("加载失败: " + errorMessage);
+            }
+        });
+    }
+    
+    private void showToast(String msg) {
+        if (getContext() != null) {
+            Toast.makeText(getContext(), msg, Toast.LENGTH_SHORT).show();
+        }
     }
 }

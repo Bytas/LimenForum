@@ -103,6 +103,32 @@ public class LocalPostService implements PostService {
     }
     
     @Override
+    public void getLikedPosts(String userId, PostCallback callback) {
+        executor.execute(() -> {
+            ensureDataLoaded();
+            List<Post> likedPosts = new ArrayList<>();
+            User currentUser = User.getInstance(); // Currently only support logged in user's liked list easily
+            
+            if (currentUser.isLoggedIn() && currentUser.getUserId().equals(userId)) {
+                for (Post p : cachedPosts) {
+                    if (currentUser.hasLikedPost(p.getId())) {
+                        resolvePostUser(p);
+                        // IMPORTANT: Set isLiked state correctly for the viewer
+                        p.setLiked(true);
+                        likedPosts.add(p);
+                    }
+                }
+            } else {
+                // If we wanted to view others' likes, we'd need to find User by ID and get their liked list
+                // But our simple User model serialization doesn't fully capture liked lists yet in JSON deeply enough or public access
+                // For now, support current user only.
+            }
+            
+            mainHandler.post(() -> callback.onSuccess(likedPosts));
+        });
+    }
+    
+    @Override
     public void getUser(String userId, UserCallback callback) {
         executor.execute(() -> {
             ensureDataLoaded();
@@ -126,6 +152,12 @@ public class LocalPostService implements PostService {
             // Fallback
             p.setDisplayUsername("User " + p.getUserId());
             p.setDisplayAvatarUrl("https://testingbot.com/free-online-tools/random-avatar/200?u=" + p.getUserId());
+        }
+        
+        // Check if current user liked this post (sync state)
+        User currentUser = User.getInstance();
+        if (currentUser.isLoggedIn()) {
+            p.setLiked(currentUser.hasLikedPost(p.getId()));
         }
     }
 
@@ -156,10 +188,35 @@ public class LocalPostService implements PostService {
     public void toggleLike(String postId, boolean isLiked, VoidCallback callback) {
         executor.execute(() -> {
             ensureDataLoaded();
+            User currentUser = User.getInstance();
+            if (!currentUser.isLoggedIn()) {
+                mainHandler.post(() -> callback.onFailure("Not logged in"));
+                return;
+            }
+
             for (Post p : cachedPosts) {
                 if (p.getId().equals(postId)) {
+                    // Prevent double counting if state is already what we want
+                    // This fixes the +2 bug where Adapter optimistic update + Service update doubled it
+                    if (p.isLiked() == isLiked) {
+                        // State matches, but ensure persistence of current state
+                        savePostsData();
+                        // Update User liked list persistence just in case
+                        if (isLiked) currentUser.addLikedPost(postId);
+                        else currentUser.removeLikedPost(postId);
+                        
+                        mainHandler.post(callback::onSuccess);
+                        return;
+                    }
+
+                    // Update Post State
                     p.setLiked(isLiked);
                     p.setLikeCount(isLiked ? p.getLikeCount() + 1 : Math.max(0, p.getLikeCount() - 1));
+                    
+                    // Update User State
+                    if (isLiked) currentUser.addLikedPost(postId);
+                    else currentUser.removeLikedPost(postId);
+                    
                     break;
                 }
             }
@@ -299,7 +356,7 @@ public class LocalPostService implements PostService {
             obj.put("timeAgo", p.getTimeAgo());
             obj.put("likeCount", p.getLikeCount());
             obj.put("commentCount", p.getCommentCount());
-            obj.put("isLiked", p.isLiked());
+            obj.put("isLiked", p.isLiked()); // Persist liked state in post too, though User preference overrides it for logic
             if (p.getImageUri() != null) obj.put("imageUri", p.getImageUri());
 
             // Serialize comments
@@ -354,6 +411,8 @@ public class LocalPostService implements PostService {
             Post post = new Post(userId, title, content, tagName, timeAgo, likeCount, commentCount);
             if (obj.has("id")) post.setId(obj.getString("id"));
             if (obj.has("imageUri")) post.setImageUri(obj.getString("imageUri"));
+            // Don't trust 'isLiked' from JSON for global posts, rely on User prefs at runtime, 
+            // but keep it for consistency if needed.
             if (obj.has("isLiked")) post.setLiked(obj.getBoolean("isLiked"));
 
             if (obj.has("comments")) {

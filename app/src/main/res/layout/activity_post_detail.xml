@@ -83,6 +83,7 @@
                     android:textColor="#111827"
                     android:textSize="20sp"
                     android:textStyle="bold"
+                    android:textIsSelectable="true"
                     tools:text="Big Title Here" />
 
                 <!-- Content -->
@@ -94,6 +95,7 @@
                     android:lineSpacingExtra="4dp"
                     android:textColor="#374151"
                     android:textSize="16sp"
+                    android:textIsSelectable="true"
                     tools:text="This is the main content of the post. It can be quite long and detailed." />
 
                 <!-- Tags -->
@@ -166,7 +168,16 @@
             android:maxLines="3"
             android:padding="10dp"
             android:textSize="14sp" />
-        <!-- Note: need a drawable resource for rounded input, or just standard -->
+
+        <ImageView
+            android:id="@+id/btnLike"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginLeft="12dp"
+            android:padding="8dp"
+            android:src="@android:drawable/btn_star_big_off"
+            app:tint="#9CA3AF"
+            android:contentDescription="Like" />
 
         <Button
             android:id="@+id/btnSendComment"

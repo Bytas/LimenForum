@@ -15,15 +15,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.example.limenforum.LimenApplication;
 import com.example.limenforum.data.model.Comment;
 import com.example.limenforum.data.model.Post;
 import com.example.limenforum.data.model.User;
-import com.example.limenforum.data.service.LocalPostService;
 import com.example.limenforum.data.service.PostService;
 import com.example.limenforum.ui.adapter.CommentAdapter;
-
-import java.util.List;
 
 public class PostDetailActivity extends AppCompatActivity {
 
@@ -38,6 +34,7 @@ public class PostDetailActivity extends AppCompatActivity {
     private RecyclerView commentsRecyclerView;
     private EditText inputComment;
     private Button btnSendComment;
+    private ImageView btnLike;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,7 +75,6 @@ public class PostDetailActivity extends AppCompatActivity {
         // Ensure navigation click listener is set explicitly as fallback
         toolbar.setNavigationOnClickListener(v -> finish());
 
-
         toolbarUserName = findViewById(R.id.toolbarUserName);
         toolbarUserAvatar = findViewById(R.id.toolbarUserAvatar);
 
@@ -92,6 +88,7 @@ public class PostDetailActivity extends AppCompatActivity {
         commentsRecyclerView = findViewById(R.id.commentsRecyclerView);
         inputComment = findViewById(R.id.inputComment);
         btnSendComment = findViewById(R.id.btnSendComment);
+        btnLike = findViewById(R.id.btnLike);
     }
 
     private void bindData() {
@@ -115,6 +112,7 @@ public class PostDetailActivity extends AppCompatActivity {
         detailTags.setText("#" + post.getTagName());
         detailDate.setText(post.getTimeAgo());
         updateCommentCount();
+        updateLikeButtonState();
 
         // Image
         if (post.getImageUri() != null && !post.getImageUri().isEmpty()) {
@@ -141,7 +139,10 @@ public class PostDetailActivity extends AppCompatActivity {
             String text = inputComment.getText().toString().trim();
             if (!text.isEmpty()) {
                 // Create Comment
-                Comment newComment = new Comment(User.getInstance().getUsername(), text);
+                // Use current user ID for comment
+                Comment newComment = new Comment(User.getInstance().getUserId(), User.getInstance().getUsername(), text);
+                // Set avatar URL for immediate display
+                newComment.setAvatarUrl(User.getInstance().getAvatarUrl());
                 
                 postService.addComment(post.getId(), newComment, new PostService.VoidCallback() {
                     @Override
@@ -164,10 +165,52 @@ public class PostDetailActivity extends AppCompatActivity {
                 });
             }
         });
+        
+        btnLike.setOnClickListener(v -> {
+            boolean newState = !post.isLiked();
+            // Optimistic update
+            post.setLiked(newState);
+            if (newState) {
+                post.setLikeCount(post.getLikeCount() + 1);
+            } else {
+                post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
+            }
+            updateLikeButtonState();
+            
+            postService.toggleLike(post.getId(), newState, new PostService.VoidCallback() {
+                @Override
+                public void onSuccess() {
+                    // Success
+                }
+
+                @Override
+                public void onFailure(String errorMessage) {
+                    // Revert
+                    post.setLiked(!newState);
+                    if (!newState) {
+                        post.setLikeCount(post.getLikeCount() + 1);
+                    } else {
+                        post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
+                    }
+                    updateLikeButtonState();
+                    Toast.makeText(PostDetailActivity.this, "操作失败: " + errorMessage, Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
     }
 
     private void updateCommentCount() {
         detailCommentCount.setText("共 " + post.getCommentCount() + " 条评论");
+    }
+    
+    private void updateLikeButtonState() {
+        if (post.isLiked()) {
+            btnLike.setColorFilter(0xFFFF0000); // Red
+            btnLike.setImageResource(android.R.drawable.btn_star_big_on);
+        } else {
+            btnLike.setColorFilter(0xFF9CA3AF); // Gray
+            btnLike.setImageResource(android.R.drawable.btn_star_big_off);
+        }
     }
 
     @Override

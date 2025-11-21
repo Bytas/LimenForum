@@ -24,6 +24,7 @@ public interface PostService {
 
     void getPosts(PostCallback callback);
     void getUserPosts(String userId, PostCallback callback); // Changed from username to userId
+    void getLikedPosts(String userId, PostCallback callback); // New method
     
     // New methods for user resolution
     void getUser(String userId, UserCallback callback);
