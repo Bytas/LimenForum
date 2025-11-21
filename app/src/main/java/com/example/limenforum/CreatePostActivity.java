@@ -144,7 +144,8 @@ public class CreatePostActivity extends AppCompatActivity {
     }
 
     private void createPostInService(String title, String content, String tagName, String imageUrl) {
-        Post newPost = new Post(User.getInstance().getUserId(), title, content, tagName, "刚刚", 0, 0);
+        // Use current timestamp when creating post
+        Post newPost = new Post(User.getInstance().getUserId(), title, content, tagName, System.currentTimeMillis(), 0, 0);
         if (imageUrl != null) {
             newPost.setImageUri(imageUrl);
         }

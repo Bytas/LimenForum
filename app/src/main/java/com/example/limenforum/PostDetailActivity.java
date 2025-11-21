@@ -20,6 +20,7 @@ import com.example.limenforum.data.model.Post;
 import com.example.limenforum.data.model.User;
 import com.example.limenforum.data.service.PostService;
 import com.example.limenforum.ui.adapter.CommentAdapter;
+import com.example.limenforum.utils.TimeUtils;
 
 public class PostDetailActivity extends AppCompatActivity {
 
@@ -110,7 +111,7 @@ public class PostDetailActivity extends AppCompatActivity {
         detailTitle.setText(post.getTitle());
         detailContent.setText(post.getContent());
         detailTags.setText("#" + post.getTagName());
-        detailDate.setText(post.getTimeAgo());
+        detailDate.setText(TimeUtils.formatTimeAgo(post.getTimestamp()));
         updateCommentCount();
         updateLikeButtonState();
 
@@ -205,11 +206,11 @@ public class PostDetailActivity extends AppCompatActivity {
     
     private void updateLikeButtonState() {
         if (post.isLiked()) {
-            btnLike.setColorFilter(0xFFFF0000); // Red
-            btnLike.setImageResource(android.R.drawable.btn_star_big_on);
+            btnLike.setImageResource(R.drawable.ic_heart_filled);
+            btnLike.setColorFilter(null); // No tint for filled heart
         } else {
-            btnLike.setColorFilter(0xFF9CA3AF); // Gray
-            btnLike.setImageResource(android.R.drawable.btn_star_big_off);
+            btnLike.setImageResource(R.drawable.ic_heart_outline);
+            btnLike.setColorFilter(null); // Color is in the drawable itself
         }
     }
 

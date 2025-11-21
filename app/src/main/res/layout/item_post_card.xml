@@ -113,7 +113,7 @@
                         android:id="@+id/imgLikeIcon"
                         android:layout_width="20dp"
                         android:layout_height="20dp"
-                        android:src="@android:drawable/btn_star_big_off" />
+                        android:src="@drawable/ic_heart_outline" />
 
                     <TextView
                         android:id="@+id/tvLikeCount"

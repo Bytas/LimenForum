@@ -11,7 +11,7 @@ public class Post implements Serializable {
     private String title;
     private String content;
     private String tagName;
-    private String timeAgo;
+    private long timestamp; // Changed from String timeAgo to long timestamp
     private int likeCount;
     private int commentCount;
     private String imageUri;
@@ -26,13 +26,13 @@ public class Post implements Serializable {
     public boolean isLiked() { return isLiked; }
     public void setLiked(boolean liked) { isLiked = liked; }
 
-    public Post(String userId, String title, String content, String tagName, String timeAgo, int likeCount, int commentCount) {
+    public Post(String userId, String title, String content, String tagName, long timestamp, int likeCount, int commentCount) {
         this.id = UUID.randomUUID().toString();
         this.userId = userId;
         this.title = title;
         this.content = content;
         this.tagName = tagName;
-        this.timeAgo = timeAgo;
+        this.timestamp = timestamp;
         this.likeCount = likeCount;
         this.commentCount = commentCount;
         this.imageUri = null;
@@ -57,7 +57,15 @@ public class Post implements Serializable {
     public String getTitle() { return title; }
     public String getContent() { return content; }
     public String getTagName() { return tagName; }
-    public String getTimeAgo() { return timeAgo; }
+    public long getTimestamp() { return timestamp; }
+    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+    
+    // Legacy getter for backward compatibility (returns formatted string)
+    @Deprecated
+    public String getTimeAgo() {
+        return com.example.limenforum.utils.TimeUtils.formatTimeAgo(timestamp);
+    }
+    
     public int getLikeCount() { return likeCount; }
     public int getCommentCount() { return comments.size(); }
     public String getImageUri() { return imageUri; }

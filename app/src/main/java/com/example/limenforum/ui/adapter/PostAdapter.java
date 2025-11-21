@@ -13,6 +13,7 @@ import com.example.limenforum.PostDetailActivity;
 import com.example.limenforum.R;
 import com.example.limenforum.data.model.Post;
 import com.example.limenforum.data.service.PostService;
+import com.example.limenforum.utils.TimeUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +59,7 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
 
         holder.title.setText(post.getTitle());
         holder.content.setText(post.getContent());
-        holder.timeAgo.setText(post.getTimeAgo());
+        holder.timeAgo.setText(TimeUtils.formatTimeAgo(post.getTimestamp()));
         holder.likeCount.setText(String.valueOf(post.getLikeCount()));
 
         // --- 图片显示 (Glide) ---
@@ -72,8 +73,13 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
         }
 
         // --- 点赞逻辑 ---
-        int color = post.isLiked() ? 0xFFFF0000 : 0xFF9CA3AF; // Red vs Gray
-        holder.imgLikeIcon.setColorFilter(color);
+        if (post.isLiked()) {
+            holder.imgLikeIcon.setImageResource(R.drawable.ic_heart_filled);
+            holder.imgLikeIcon.setColorFilter(null); // No tint for filled heart
+        } else {
+            holder.imgLikeIcon.setImageResource(R.drawable.ic_heart_outline);
+            holder.imgLikeIcon.setColorFilter(null); // Color is in the drawable itself
+        }
 
         holder.likeButton.setOnClickListener(v -> {
             boolean newState = !post.isLiked();

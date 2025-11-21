@@ -28,7 +28,7 @@ public class LocalPostService implements PostService {
     private static final String USERS_FILENAME = "users_data.json";
     private static final String PREF_NAME = "LimenDataPrefs";
     private static final String KEY_DB_VERSION = "db_version";
-    private static final String CURRENT_DB_VERSION = "20251121-1830"; // Bumped version
+    private static final String CURRENT_DB_VERSION = "20251121-2000"; // Bumped version for timestamp migration
 
     private final Context context;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -353,7 +353,7 @@ public class LocalPostService implements PostService {
             obj.put("title", p.getTitle());
             obj.put("content", p.getContent());
             obj.put("tagName", p.getTagName());
-            obj.put("timeAgo", p.getTimeAgo());
+            obj.put("timestamp", p.getTimestamp()); // Changed from timeAgo string to timestamp
             obj.put("likeCount", p.getLikeCount());
             obj.put("commentCount", p.getCommentCount());
             obj.put("isLiked", p.isLiked()); // Persist liked state in post too, though User preference overrides it for logic
@@ -404,11 +404,25 @@ public class LocalPostService implements PostService {
             String title = obj.has("title") ? obj.getString("title") : "";
             String content = obj.getString("content");
             String tagName = obj.getString("tagName");
-            String timeAgo = obj.getString("timeAgo");
+            
+            // Handle timestamp migration: support both old "timeAgo" string and new "timestamp" long
+            long timestamp;
+            if (obj.has("timestamp")) {
+                timestamp = obj.getLong("timestamp");
+            } else if (obj.has("timeAgo")) {
+                // Legacy: convert old timeAgo string to approximate timestamp
+                // For old data, we'll use current time minus a reasonable offset
+                // This is not perfect but allows migration without data loss
+                String timeAgoStr = obj.getString("timeAgo");
+                timestamp = estimateTimestampFromTimeAgo(timeAgoStr);
+            } else {
+                timestamp = System.currentTimeMillis(); // Default to now
+            }
+            
             int likeCount = obj.getInt("likeCount");
             int commentCount = obj.getInt("commentCount");
 
-            Post post = new Post(userId, title, content, tagName, timeAgo, likeCount, commentCount);
+            Post post = new Post(userId, title, content, tagName, timestamp, likeCount, commentCount);
             if (obj.has("id")) post.setId(obj.getString("id"));
             if (obj.has("imageUri")) post.setImageUri(obj.getString("imageUri"));
             // Don't trust 'isLiked' from JSON for global posts, rely on User prefs at runtime, 
@@ -452,5 +466,42 @@ public class LocalPostService implements PostService {
             list.add(user);
         }
         return list;
+    }
+    
+    // Helper method to estimate timestamp from legacy timeAgo string
+    private long estimateTimestampFromTimeAgo(String timeAgo) {
+        long now = System.currentTimeMillis();
+        if (timeAgo == null || timeAgo.isEmpty()) {
+            return now;
+        }
+        
+        // Try to parse common patterns
+        if (timeAgo.contains("刚刚")) {
+            return now - 2 * 60 * 1000; // 2 minutes ago
+        } else if (timeAgo.contains("分钟前")) {
+            try {
+                int minutes = Integer.parseInt(timeAgo.replaceAll("[^0-9]", ""));
+                return now - minutes * 60 * 1000L;
+            } catch (NumberFormatException e) {
+                return now - 30 * 60 * 1000; // Default 30 minutes
+            }
+        } else if (timeAgo.contains("小时前")) {
+            try {
+                int hours = Integer.parseInt(timeAgo.replaceAll("[^0-9]", ""));
+                return now - hours * 60 * 60 * 1000L;
+            } catch (NumberFormatException e) {
+                return now - 2 * 60 * 60 * 1000; // Default 2 hours
+            }
+        } else if (timeAgo.contains("天前")) {
+            try {
+                int days = Integer.parseInt(timeAgo.replaceAll("[^0-9]", ""));
+                return now - days * 24 * 60 * 60 * 1000L;
+            } catch (NumberFormatException e) {
+                return now - 1 * 24 * 60 * 60 * 1000; // Default 1 day
+            }
+        }
+        
+        // Default: assume 1 hour ago
+        return now - 60 * 60 * 1000;
     }
 }
